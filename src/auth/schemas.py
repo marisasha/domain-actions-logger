@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from pydantic import BaseModel
 
 
@@ -12,15 +12,15 @@ class UserSchema(BaseModel):
     first_name: str
     last_name: str
     email: str
-    birth_date: datetime.datetime
+    birth_date: datetime
     phone: str
 
 
-class UserSchemaGET(UserSchema):
+class UserSchemaResponse(UserSchema):
     id: int
 
 
-class UserSchemaPOST(UserSchema):
+class UserSchemaRequest(UserSchema):
     password: str
 
 
