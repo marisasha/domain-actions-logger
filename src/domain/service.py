@@ -1,0 +1,160 @@
+from fastapi import APIRouter, HTTPException
+from fastapi import status, Depends
+from sqlalchemy import func, select
+
+from src.domain.models import *
+from src.domain.schemas import *
+from src.domain.dependencies import SessionDep
+
+from src.auth.security import decode_access_token
+
+router = APIRouter(
+    tags=[
+        "api domain",
+    ],
+    prefix="/api",
+)
+
+
+@router.post("/owners", summary="Create owner", status_code=status.HTTP_201_CREATED)
+async def create_owner(
+    owner: OwnerDomainSchema,
+    session: SessionDep,
+    current_username: str = Depends(decode_access_token),
+) -> OwnerDomainSchemaResponse:
+    new_owner = OwnerDomainModel(
+        first_name=owner.first_name,
+        last_name=owner.last_name,
+        gender=owner.gender,
+        email=owner.email,
+        phone=owner.phone,
+        birth_date=owner.birth_date,
+        birth_place=owner.birth_place,
+        passport_from=owner.passport_from,
+        passport_number=owner.passport_number,
+        passport_series=owner.passport_series,
+        issue_date=owner.issue_date,
+        expiry_date=owner.expiry_date,
+        department_code=owner.department_code,
+        issue_by=owner.issue_by,
+    )
+    session.add(new_owner)
+    await session.commit()
+
+    return new_owner
+
+
+@router.get(
+    "/owners/{id}", summary="Get owner information", status_code=status.HTTP_200_OK
+)
+async def get_owner(
+    session: SessionDep, id: int, current_username: str = Depends(decode_access_token)
+) -> OwnerDomainSchemaResponse:
+    owner_execute = await session.execute(
+        select(OwnerDomainModel).where(OwnerDomainModel.id == id)
+    )
+
+    owner = owner_execute.scalar_one_or_none()
+    if owner == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Owner with id {id} not found",
+        )
+    return owner
+
+
+@router.get(
+    "/owners/{owner_id}/domains",
+    summary="Get owner's domains",
+    status_code=status.HTTP_200_OK,
+)
+async def get_owner_domains(
+    session: SessionDep,
+    owner_id: int,
+    current_username: str = Depends(decode_access_token),
+) -> list[DomainSchemaResponse]:
+    owner_domains_execute = await session.execute(
+        select(DomainModel).where(DomainModel.owner_id == owner_id)
+    )
+
+    owner_domains = owner_domains_execute.scalars().all()
+    if owner_domains == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Domain with owner id {owner_id} not found",
+        )
+    return owner_domains
+
+
+@router.get(
+    "/owners/{owner_id}/domains/{domain_id}",
+    summary="Get owner's domain by owner_id and domain_id",
+    status_code=status.HTTP_200_OK,
+)
+async def get_owner_and_domain(
+    session: SessionDep,
+    owner_id: int,
+    domain_id: int,
+    current_username: str = Depends(decode_access_token),
+):
+    owner_and_domain_execute = await session.execute(
+        select(OwnerDomainModel, DomainModel)
+        .join(OwnerDomainModel, DomainModel.owner_id == OwnerDomainModel.id)
+        .where(OwnerDomainModel.id == owner_id)
+        .where(DomainModel.id == domain_id)
+    )
+
+    owner_and_domain = owner_and_domain_execute.one_or_none()
+    if owner_and_domain == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Owner with owner id {owner_id} or domain with id {domain_id} not found",
+        )
+    owner, domain = owner_and_domain
+    return OwnerWithDomainSchema(
+        **domain.__dict__,
+        owner_first_name=owner.first_name,
+        owner_last_name=owner.last_name,
+    )
+
+
+@router.post("/domains", summary="Create domain", status_code=status.HTTP_201_CREATED)
+async def create_domain(
+    domain: DomainSchema,
+    session: SessionDep,
+    current_username: str = Depends(decode_access_token),
+) -> DomainSchemaResponse:
+    new_domain = DomainModel(
+        owner_id=domain.owner_id,
+        name=domain.name,
+        registration_date=domain.registration_date,
+        expiry_date=domain.expiry_date,
+        status=domain.status,
+        registration_certificate_url=domain.registration_certificate_url,
+    )
+
+    session.add(new_domain)
+    await session.commit()
+
+    return new_domain
+
+
+@router.get(
+    "/domains/{id}",
+    summary="Get domain information by id",
+    status_code=status.HTTP_200_OK,
+)
+async def get_domain(
+    session: SessionDep, id: int, current_username: str = Depends(decode_access_token)
+) -> DomainSchemaResponse:
+    domain_execute = await session.execute(
+        select(DomainModel).where(DomainModel.id == id)
+    )
+
+    domain = domain_execute.scalar_one_or_none()
+    if domain == None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Domain with id {id} not found",
+        )
+    return domain
