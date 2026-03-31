@@ -1,7 +1,6 @@
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi import status
-from sqlalchemy import func, select
-from datetime import datetime, timedelta, timezone
+from sqlalchemy import exists, func, select
 
 from src.auth.models import *
 from src.auth.schemas import *
@@ -14,15 +13,37 @@ router = APIRouter(tags=["auth"])
 @router.post(
     "/auth/register", summary="Сreate new user", status_code=status.HTTP_201_CREATED
 )
-async def register(user: UserSchemaPOST, session: SessionDep) -> UserSchema:
+async def register(user: UserSchemaRequest, session: SessionDep) -> UserSchemaResponse:
 
-    is_username_exist = await session.execute(
-        select(True).where(UserModel.username == user.username)
+    is_username_exists_execute = await session.execute(
+        select(exists().where(UserModel.username == user.username))
     )
-    if is_username_exist:
+
+    is_email_exists_execute = await session.execute(
+        select(exists().where(UserModel.email == user.email))
+    )
+
+    is_phone_exists_execute = await session.execute(
+        select(exists().where(UserModel.phone == user.phone))
+    )
+
+    username_exists = is_username_exists_execute.scalar()
+    email_exists = is_email_exists_execute.scalar()
+    phone_exists = is_phone_exists_execute.scalar()
+
+    if username_exists or email_exists or phone_exists:
+        detail = (
+            "Username already exists"
+            if username_exists
+            else (
+                "Email already exists"
+                if email_exists
+                else "Phone already exists" if phone_exists else "Unknown error"
+            )
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This username already exists",
+            detail=detail,
         )
 
     new_user = UserModel(
