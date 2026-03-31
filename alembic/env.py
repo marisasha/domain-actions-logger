@@ -14,6 +14,7 @@ load_dotenv(env_path)
 
 from src.database import Base
 from src.auth import models
+from src.domain import models
 
 config = context.config
 
