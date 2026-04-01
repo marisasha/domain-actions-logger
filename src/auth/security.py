@@ -30,10 +30,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hash.verify(plain_password, hashed_password)
 
 
-def needs_rehash(hashed_password: str) -> bool:
-    return password_hash.needs_rehash(hashed_password)
-
-
 def create_access_token(data: Dict[str, str]) -> Dict[str, str]:
     access_data = data.copy()
     access_expire = datetime.now(timezone.utc) + timedelta(
