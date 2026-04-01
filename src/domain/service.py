@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi import status, Depends
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
+from sqlalchemy.exc import IntegrityError
 
 from src.domain.models import *
 from src.domain.schemas import *
@@ -22,26 +23,34 @@ async def create_owner(
     session: SessionDep,
     current_username: str = Depends(decode_access_token),
 ) -> OwnerDomainSchemaResponse:
-    new_owner = OwnerDomainModel(
-        first_name=owner.first_name,
-        last_name=owner.last_name,
-        gender=owner.gender,
-        email=owner.email,
-        phone=owner.phone,
-        birth_date=owner.birth_date,
-        birth_place=owner.birth_place,
-        passport_from=owner.passport_from,
-        passport_number=owner.passport_number,
-        passport_series=owner.passport_series,
-        issue_date=owner.issue_date,
-        expiry_date=owner.expiry_date,
-        department_code=owner.department_code,
-        issue_by=owner.issue_by,
-    )
-    session.add(new_owner)
-    await session.commit()
+    try:
 
-    return new_owner
+        new_owner = OwnerDomainModel(
+            first_name=owner.first_name,
+            last_name=owner.last_name,
+            gender=owner.gender,
+            email=owner.email,
+            phone=owner.phone,
+            birth_date=owner.birth_date,
+            birth_place=owner.birth_place,
+            passport_from=owner.passport_from,
+            passport_number=owner.passport_number,
+            passport_series=owner.passport_series,
+            issue_date=owner.issue_date,
+            expiry_date=owner.expiry_date,
+            department_code=owner.department_code,
+            issue_by=owner.issue_by,
+        )
+
+        session.add(new_owner)
+        await session.commit()
+        return new_owner
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
 
 
 @router.get(
@@ -124,19 +133,40 @@ async def create_domain(
     session: SessionDep,
     current_username: str = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
-    new_domain = DomainModel(
-        owner_id=domain.owner_id,
-        name=domain.name,
-        registration_date=domain.registration_date,
-        expiry_date=domain.expiry_date,
-        status=domain.status,
-        registration_certificate_url=domain.registration_certificate_url,
-    )
+    try:
 
-    session.add(new_domain)
-    await session.commit()
+        is_domain_name_exist = await session.execute(
+            select(exists().where(DomainModel.name == domain.name))
+        )
+        if is_domain_name_exist.scalar():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Domain with name {domain.name}already exists",
+            )
 
-    return new_domain
+        new_domain = DomainModel(
+            owner_id=domain.owner_id,
+            name=domain.name,
+            registration_date=domain.registration_date,
+            expiry_date=domain.expiry_date,
+            status=domain.status,
+            registration_certificate_url=domain.registration_certificate_url,
+        )
+
+        session.add(new_domain)
+        await session.commit()
+        return new_domain
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Owner with id {domain.owner_id} not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
 
 
 @router.get(
@@ -158,3 +188,53 @@ async def get_domain(
             detail=f"Domain with id {id} not found",
         )
     return domain
+
+
+@router.post(
+    "/domains/users",
+    summary="Create relationship user and domain",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_user_domain(
+    user_domain: UserDomainSchema,
+    session: SessionDep,
+    current_username: str = Depends(decode_access_token),
+) -> UserDomainSchema:
+    try:
+
+        is_user_and_domain_exists = await session.execute(
+            select(
+                exists().where(
+                    UserDomainModel.user_id == user_domain.user_id,
+                    UserDomainModel.domain_id == user_domain.domain_id,
+                )
+            )
+        )
+        if is_user_and_domain_exists.scalar():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Relationship user {user_domain.user_id} and domain {user_domain.domain_id} already exists",
+            )
+
+        new_user_domain = UserDomainModel(
+            user_id=user_domain.user_id,
+            domain_id=user_domain.domain_id,
+            permission=user_domain.permission,
+            permission_give_date=user_domain.permission_give_date,
+            last_used_date=user_domain.last_used_date,
+        )
+
+        session.add(new_user_domain)
+        await session.commit()
+        return new_user_domain
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id {user_domain.user_id} or domain with id {user_domain.domain_id} not found",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
+        )
