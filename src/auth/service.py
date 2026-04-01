@@ -15,50 +15,57 @@ router = APIRouter(tags=["auth"])
 )
 async def register(user: UserSchemaRequest, session: SessionDep) -> UserSchemaResponse:
 
-    is_username_exists_execute = await session.execute(
-        select(exists().where(UserModel.username == user.username))
-    )
+    try:
 
-    is_email_exists_execute = await session.execute(
-        select(exists().where(UserModel.email == user.email))
-    )
+        is_username_exists_execute = await session.execute(
+            select(exists().where(UserModel.username == user.username))
+        )
 
-    is_phone_exists_execute = await session.execute(
-        select(exists().where(UserModel.phone == user.phone))
-    )
+        is_email_exists_execute = await session.execute(
+            select(exists().where(UserModel.email == user.email))
+        )
 
-    username_exists = is_username_exists_execute.scalar()
-    email_exists = is_email_exists_execute.scalar()
-    phone_exists = is_phone_exists_execute.scalar()
+        is_phone_exists_execute = await session.execute(
+            select(exists().where(UserModel.phone == user.phone))
+        )
 
-    if username_exists or email_exists or phone_exists:
-        detail = (
-            "Username already exists"
-            if username_exists
-            else (
-                "Email already exists"
-                if email_exists
-                else "Phone already exists" if phone_exists else "Unknown error"
+        username_exists = is_username_exists_execute.scalar()
+        email_exists = is_email_exists_execute.scalar()
+        phone_exists = is_phone_exists_execute.scalar()
+
+        if username_exists or email_exists or phone_exists:
+            detail = (
+                "Username already exists"
+                if username_exists
+                else (
+                    "Email already exists"
+                    if email_exists
+                    else "Phone already exists" if phone_exists else "Unknown error"
+                )
             )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=detail,
+            )
+
+        new_user = UserModel(
+            username=user.username,
+            password=hash_password(user.password),
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=user.email,
+            birth_date=user.birth_date,
+            phone=user.phone,
         )
+
+        session.add(new_user)
+        await session.commit()
+        return new_user
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=detail,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error",
         )
-
-    new_user = UserModel(
-        username=user.username,
-        password=hash_password(user.password),
-        first_name=user.first_name,
-        last_name=user.last_name,
-        email=user.email,
-        birth_date=user.birth_date,
-        phone=user.phone,
-    )
-    session.add(new_user)
-    await session.commit()
-
-    return new_user
 
 
 @router.post(
