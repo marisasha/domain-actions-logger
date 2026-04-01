@@ -34,22 +34,39 @@ class OwnerDomainModel(Base):
 
 class DomainModel(Base):
     __tablename__ = "domain"
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('registered', 'active', 'expired')", name="check_status_valid"
-        ),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("owner_domain.id", ondelete="CASCADE")
     )
-    name: Mapped[str]
 
+    name: Mapped[str] = mapped_column(unique=True)
     registration_date: Mapped[datetime]
     expiry_date: Mapped[datetime]
 
-    status: Mapped[str]
+    status: Mapped[str] = mapped_column(
+        CheckConstraint(
+            "status IN ('registered', 'active', 'expired')", name="check_status_valid"
+        )
+    )
     registration_certificate_url: Mapped[str | None] = mapped_column(
         nullable=True, default=None
     )
+
+
+class UserDomainModel(Base):
+    __tablename__ = "user_domain"
+    __table_args__ = (UniqueConstraint("user_id", "domain_id", name="uq_user_domain"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"))
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domain.id", ondelete="CASCADE"))
+
+    permission: Mapped[str] = mapped_column(
+        CheckConstraint(
+            "permission IN ('user', 'moderator', 'admin')",
+            name="check_permission_valid",
+        )
+    )
+    permission_give_date: Mapped[datetime]
+    last_used_date: Mapped[datetime | None] = mapped_column(nullable=True)
