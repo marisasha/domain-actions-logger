@@ -2,7 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-# =- Owner domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# =- Owner domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerDomainSchema(BaseModel):
     first_name: str
     last_name: str
@@ -42,9 +42,16 @@ class DomainSchemaResponse(DomainSchema):
     id: int
 
 
-# =- Owner Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-
-
-
+# =- Owner Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerWithDomainSchema(DomainSchemaResponse):
     owner_first_name: str
     owner_last_name: str
+
+
+# =- User Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-
+class UserDomainSchema(BaseModel):
+    user_id: int
+    domain_id: int
+    permission: str
+    permission_give_date: datetime
+    last_used_date: datetime | None
