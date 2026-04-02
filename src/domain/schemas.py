@@ -1,5 +1,8 @@
 from datetime import datetime
+from typing import List, Optional
 from pydantic import BaseModel
+
+from src.auth.schemas import UserProfileSchema
 
 
 # =- Owner domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -42,6 +45,11 @@ class DomainSchemaResponse(DomainSchema):
     id: int
 
 
+class DomainProfileSchema(BaseModel):
+    id: int
+    name: str
+
+
 # =- Owner Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerWithDomainSchema(DomainSchemaResponse):
     owner_first_name: str
@@ -55,3 +63,28 @@ class UserDomainSchema(BaseModel):
     permission: str
     permission_give_date: datetime
     last_used_date: datetime | None
+
+
+class DomainPermissionSchema(BaseModel):
+    domain_name: str
+    permission: str
+    permission_give_date: datetime
+    last_used_date: datetime
+
+
+class UserPermissionSchema(BaseModel):
+    first_name: str
+    last_name: str
+    permission: str
+    permission_give_date: datetime
+    last_used_date: datetime
+
+
+class UserDomainsResponse(BaseModel):
+    user: Optional[UserProfileSchema]
+    domains: List[DomainPermissionSchema]
+
+
+class DomainUsersResponse(BaseModel):
+    domain: Optional[DomainProfileSchema]
+    users: List[UserPermissionSchema]
