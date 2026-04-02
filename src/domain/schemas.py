@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import List, Literal, Optional
+from pydantic import BaseModel, Field
 
 from src.auth.schemas import UserProfileSchema
+from src.utils import PermissionEnum
 
 
-# =- Owner domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# =- Owner Model -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerDomainSchema(BaseModel):
     first_name: str
     last_name: str
@@ -31,7 +32,7 @@ class OwnerDomainSchemaResponse(OwnerDomainSchema):
     id: int
 
 
-# =- Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-
+# =- Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-
 class DomainSchema(BaseModel):
     owner_id: int
     name: str
@@ -50,24 +51,37 @@ class DomainProfileSchema(BaseModel):
     name: str
 
 
-# =- Owner Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# =- Owner Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerWithDomainSchema(DomainSchemaResponse):
     owner_first_name: str
     owner_last_name: str
 
 
-# =- User Domain -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-
+# =- User Domain Model -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-
 class UserDomainSchema(BaseModel):
-    user_id: int
-    domain_id: int
-    permission: str
+    permission: PermissionEnum
     permission_give_date: datetime
     last_used_date: datetime | None
 
 
+class UserDomainIDSchema(UserDomainSchema):
+    user_id: int
+    domain_id: int
+
+
+class UserDomainSchemaResponse(UserDomainSchema):
+    domain_name: str
+    user_first_name: str
+    user_last_name: str
+
+
+class PermissionChangeSchema(BaseModel):
+    permission: PermissionEnum
+
+
 class DomainPermissionSchema(BaseModel):
     domain_name: str
-    permission: str
+    permission: PermissionEnum
     permission_give_date: datetime
     last_used_date: datetime
 
@@ -75,7 +89,7 @@ class DomainPermissionSchema(BaseModel):
 class UserPermissionSchema(BaseModel):
     first_name: str
     last_name: str
-    permission: str
+    permission: PermissionEnum
     permission_give_date: datetime
     last_used_date: datetime
 
@@ -88,3 +102,10 @@ class UserDomainsResponse(BaseModel):
 class DomainUsersResponse(BaseModel):
     domain: Optional[DomainProfileSchema]
     users: List[UserPermissionSchema]
+
+
+# =- Message Response -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+class MessageSchemaResponse(BaseModel):
+    message: str
