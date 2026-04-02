@@ -3,6 +3,8 @@ from fastapi import status, Depends
 from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 
+from src.auth.schemas import UserProfileSchema
+from src.auth.models import UserModel
 from src.domain.models import *
 from src.domain.schemas import *
 from src.domain.dependencies import SessionDep
@@ -238,3 +240,96 @@ async def create_user_domain(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal Server Error",
         )
+
+
+@router.get(
+    "/domains/{domain_id}/users",
+    summary="Get all users for domain by domain_id",
+    status_code=status.HTTP_200_OK,
+)
+async def get_users_for_domain(
+    domain_id: int,
+    session: SessionDep,
+    current_username: str = Depends(decode_access_token),
+):
+    domain_users_execute = await session.execute(
+        select(
+            DomainModel.id.label("domain_id"),
+            DomainModel.name.label("domain_name"),
+            UserModel.first_name.label("user_first_name"),
+            UserModel.last_name.label("user_last_name"),
+            UserDomainModel.permission,
+            UserDomainModel.permission_give_date,
+            UserDomainModel.last_used_date,
+        )
+        .join(DomainModel, DomainModel.id == UserDomainModel.domain_id)
+        .join(UserModel, UserModel.id == UserDomainModel.user_id)
+        .where(UserDomainModel.domain_id == domain_id)
+    )
+
+    domain_users_row = domain_users_execute.all()
+    if not domain_users_row:
+        return DomainUsersResponse(domain=None, users=[])
+
+    domain = DomainProfileSchema(
+        id=domain_users_row[0].domain_id, name=domain_users_row[0].domain_name
+    )
+
+    users = [
+        UserPermissionSchema(
+            first_name=row.user_first_name,
+            last_name=row.user_last_name,
+            permission=row.permission,
+            permission_give_date=row.permission_give_date,
+            last_used_date=row.last_used_date,
+        )
+        for row in domain_users_row
+    ]
+
+    return DomainUsersResponse(domain=domain, users=users)
+
+
+@router.get(
+    "/domains/users/{user_id}",
+    summary="Get all domains for user by user_id",
+    status_code=status.HTTP_200_OK,
+)
+async def get_domains_for_user(
+    user_id: int,
+    session: SessionDep,
+    current_username: str = Depends(decode_access_token),
+):
+    user_domains_execute = await session.execute(
+        select(
+            UserModel.id.label("user_id"),
+            UserModel.first_name.label("user_first_name"),
+            UserModel.last_name.label("user_last_name"),
+            DomainModel.name.label("domain_name"),
+            UserDomainModel.permission,
+            UserDomainModel.permission_give_date,
+            UserDomainModel.last_used_date,
+        )
+        .join(DomainModel, DomainModel.id == UserDomainModel.domain_id)
+        .join(UserModel, UserModel.id == UserDomainModel.user_id)
+        .where(UserDomainModel.user_id == user_id)
+    )
+    user_domains_rows = user_domains_execute.all()
+    if not user_domains_rows:
+        return UserDomainsResponse(user=None, domains=[])
+
+    user = UserProfileSchema(
+        id=user_domains_rows[0].user_id,
+        first_name=user_domains_rows[0].user_first_name,
+        last_name=user_domains_rows[0].user_last_name,
+    )
+    domains = [
+        DomainPermissionSchema(
+            domain_name=row.domain_name,
+            permission=row.permission,
+            permission_give_date=row.permission_give_date,
+            last_used_date=row.last_used_date,
+        )
+        for row in user_domains_rows
+    ]
+
+    return UserDomainsResponse(user=user, domains=domains)
