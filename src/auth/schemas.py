@@ -27,3 +27,9 @@ class UserSchemaRequest(UserSchema):
 class UserAuthorizationSchema(BaseModel):
     username: str
     password: str
+
+
+class UserProfileSchema(BaseModel):
+    id: int
+    first_name: str
+    last_name: str
