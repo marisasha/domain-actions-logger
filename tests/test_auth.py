@@ -1,3 +1,4 @@
+from datetime import datetime
 import random
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -6,7 +7,7 @@ from src.main import app
 from src.database import engine as async_engine
 
 
-@pytest.fixture
+@pytest.fixture()
 async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as ac:
@@ -45,6 +46,7 @@ async def test_register_success(client):
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["username"] == username
+    print(f"[{datetime.now()}]TEST: register success. RESULT: passed ✅")
 
 
 # =-=-=-=- Тест регистрации существующего пользователя =-=-=-=-=-=-=-=-=-=-=-=-
@@ -63,6 +65,7 @@ async def test_register_existing_user(client):
     }
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    print(f"[{datetime.now()}]TEST: register existing user. RESULT: passed ✅")
 
 
 # =-=-=-=- Тест получения токенов =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -81,6 +84,7 @@ async def test_login_success(client):
     data = response.json()
     assert "access" in data
     assert "refresh" in data
+    print(f"[{datetime.now()}]TEST: login success. RESULT: passed ✅")
 
 
 # =-=-=-=- Тест получения токена для несуществующего пользователя =-=-=-=-=-=-=-
@@ -96,6 +100,7 @@ async def test_login_non_existent_user(client):
     )
 
     assert response.status_code == 400
+    print(f"[{datetime.now()}]TEST: login non existent user. RESULT: passed ✅")
 
 
 # =-=-=-=- Тест получения токена для пользователя при неправильном пароле =-=-=-=-
@@ -111,6 +116,7 @@ async def test_login_wrong_password(client):
     )
 
     assert response.status_code == 401
+    print(f"[{datetime.now()}]TEST: login wrong password. RESULT: passed ✅ ")
 
 
 # =-=-=-=- Тест для обновления токена =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -131,3 +137,4 @@ async def test_refresh_token(client):
 
     assert response.status_code == 200
     assert "access" in response.json()
+    print(f"[{datetime.now()}]TEST: refresh token. RESULT: passed ✅")
