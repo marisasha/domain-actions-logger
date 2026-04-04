@@ -159,7 +159,8 @@ async def create_domain(
         session.add(new_domain)
         await session.commit()
         return new_domain
-
+    except HTTPException:
+        raise
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -230,7 +231,8 @@ async def create_user_domain(
         session.add(new_user_domain)
         await session.commit()
         return new_user_domain
-
+    except HTTPException:
+        raise
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
