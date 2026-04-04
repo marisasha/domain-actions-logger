@@ -61,6 +61,8 @@ async def register(user: UserSchemaRequest, session: SessionDep) -> UserSchemaRe
         session.add(new_user)
         await session.commit()
         return new_user
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
