@@ -28,6 +28,24 @@ async def create_owner(
 ) -> OwnerDomainSchemaResponse:
     try:
 
+        is_email_exists_execute = await session.execute(
+            select(exists().where(OwnerDomainModel.email == owner.email))
+        )
+
+        is_phone_exists_execute = await session.execute(
+            select(exists().where(OwnerDomainModel.phone == owner.phone))
+        )
+
+        email_exists = is_email_exists_execute.scalar()
+        phone_exists = is_phone_exists_execute.scalar()
+
+        if email_exists or phone_exists:
+            detail = "Email already exists" if email_exists else "Phone already exists"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=detail,
+            )
+
         new_owner = OwnerDomainModel(
             first_name=owner.first_name,
             last_name=owner.last_name,
@@ -48,7 +66,8 @@ async def create_owner(
         session.add(new_owner)
         await session.commit()
         return new_owner
-
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -57,20 +76,25 @@ async def create_owner(
 
 
 @router.get(
-    "/owners/{id}", summary="Get owner information", status_code=status.HTTP_200_OK
+    "/owners/{owner_id}",
+    summary="Get owner information",
+    status_code=status.HTTP_200_OK,
 )
 async def get_owner(
-    session: SessionDep, id: int, current_username: str = Depends(decode_access_token)
+    session: SessionDep,
+    owner_id: int,
+    current_username: str = Depends(decode_access_token),
 ) -> OwnerDomainSchemaResponse:
+
     owner_execute = await session.execute(
-        select(OwnerDomainModel).where(OwnerDomainModel.id == id)
+        select(OwnerDomainModel).where(OwnerDomainModel.id == owner_id)
     )
 
     owner = owner_execute.scalar_one_or_none()
     if owner is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Owner with id {id} not found",
+            detail=f"Owner with id {owner_id} not found",
         )
     return owner
 
