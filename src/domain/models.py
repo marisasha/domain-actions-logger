@@ -22,8 +22,8 @@ class OwnerDomainModel(Base):
     birth_place: Mapped[str]
 
     passport_from: Mapped[str]
-    passport_number: Mapped[str]
-    passport_series: Mapped[int | None] = mapped_column(nullable=True)
+    passport_number: Mapped[str] = mapped_column(unique=True)
+    passport_series: Mapped[int | None] = mapped_column(nullable=True, unique=True)
 
     issue_date: Mapped[datetime]
     expiry_date: Mapped[datetime | None] = mapped_column(nullable=True)
