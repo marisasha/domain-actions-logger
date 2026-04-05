@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi import status, Depends
 from sqlalchemy import exists, func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DBAPIError
 
 from src.auth.schemas import UserProfileSchema
 from src.auth.models import UserModel
@@ -35,12 +35,49 @@ async def create_owner(
         is_phone_exists_execute = await session.execute(
             select(exists().where(OwnerDomainModel.phone == owner.phone))
         )
+        is_passport_series_exists_execute = await session.execute(
+            select(
+                exists().where(
+                    OwnerDomainModel.passport_series == owner.passport_series
+                )
+            )
+        )
+        is_passport_number_exists_execute = await session.execute(
+            select(
+                exists().where(
+                    OwnerDomainModel.passport_number == owner.passport_number
+                )
+            )
+        )
 
         email_exists = is_email_exists_execute.scalar()
         phone_exists = is_phone_exists_execute.scalar()
+        passport_series_exists = is_passport_series_exists_execute.scalar()
+        passport_number_exists = is_passport_number_exists_execute.scalar()
 
-        if email_exists or phone_exists:
-            detail = "Email already exists" if email_exists else "Phone already exists"
+        if (
+            email_exists
+            or phone_exists
+            or passport_number_exists
+            or passport_series_exists
+        ):
+            detail = (
+                "Email already exists"
+                if email_exists
+                else (
+                    "Phone already exists"
+                    if phone_exists
+                    else (
+                        "Passport number already exists"
+                        if passport_number_exists
+                        else (
+                            "Passport series already exists"
+                            if passport_series_exists
+                            else "Unknown error"
+                        )
+                    )
+                )
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=detail,
@@ -168,7 +205,7 @@ async def create_domain(
         if is_domain_name_exist.scalar():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Domain with name {domain.name}already exists",
+                detail=f"Domain with name {domain.name} already exists",
             )
 
         new_domain = DomainModel(
@@ -224,12 +261,11 @@ async def get_domain(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_user_domain(
-    user_domain: UserDomainSchema,
+    user_domain: UserDomainIDSchema,
     session: SessionDep,
     current_username: str = Depends(decode_access_token),
 ) -> UserDomainIDSchema:
     try:
-
         is_user_and_domain_exists = await session.execute(
             select(
                 exists().where(
@@ -257,7 +293,7 @@ async def create_user_domain(
         return new_user_domain
     except HTTPException:
         raise
-    except IntegrityError:
+    except DBAPIError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with id {user_domain.user_id} or domain with id {user_domain.domain_id} not found",
