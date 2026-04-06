@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException
-from fastapi import status, Depends
-from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError, DBAPIError
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import delete, exists, func, select
+from fastapi import status, Depends
 
-from src.auth.schemas import UserProfileSchema
-from src.auth.models import UserModel
+from src.domain.dependencies import SessionDep
 from src.domain.models import *
 from src.domain.schemas import *
-from src.domain.dependencies import SessionDep
+
+from src.user.schemas import UserProfileSchema
+from src.user.models import UserModel
 
 from src.auth.security import decode_access_token
 from src.utils import n_print
@@ -28,60 +29,20 @@ async def create_owner(
 ) -> OwnerDomainSchemaResponse:
     try:
 
-        is_email_exists_execute = await session.execute(
-            select(exists().where(OwnerDomainModel.email == owner.email))
-        )
-
-        is_phone_exists_execute = await session.execute(
-            select(exists().where(OwnerDomainModel.phone == owner.phone))
-        )
-        is_passport_series_exists_execute = await session.execute(
-            select(
-                exists().where(
-                    OwnerDomainModel.passport_series == owner.passport_series
-                )
-            )
-        )
-        is_passport_number_exists_execute = await session.execute(
-            select(
-                exists().where(
-                    OwnerDomainModel.passport_number == owner.passport_number
-                )
-            )
-        )
-
-        email_exists = is_email_exists_execute.scalar()
-        phone_exists = is_phone_exists_execute.scalar()
-        passport_series_exists = is_passport_series_exists_execute.scalar()
-        passport_number_exists = is_passport_number_exists_execute.scalar()
-
-        if (
-            email_exists
-            or phone_exists
-            or passport_number_exists
-            or passport_series_exists
-        ):
-            detail = (
-                "Email already exists"
-                if email_exists
-                else (
-                    "Phone already exists"
-                    if phone_exists
-                    else (
-                        "Passport number already exists"
-                        if passport_number_exists
-                        else (
-                            "Passport series already exists"
-                            if passport_series_exists
-                            else "Unknown error"
-                        )
+        owner_dict = owner.model_dump()
+        for field in ["email", "phone", "passport_number"]:
+            is_field_exists = await session.execute(
+                select(
+                    exists().where(
+                        getattr(OwnerDomainModel, field) == owner_dict[field]
                     )
                 )
             )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=detail,
-            )
+            if is_field_exists.scalar():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{field.replace("_"," ").title()} already exists",
+                )
 
         new_owner = OwnerDomainModel(
             first_name=owner.first_name,
@@ -123,11 +84,8 @@ async def get_owner(
     current_username: str = Depends(decode_access_token),
 ) -> OwnerDomainSchemaResponse:
 
-    owner_execute = await session.execute(
-        select(OwnerDomainModel).where(OwnerDomainModel.id == owner_id)
-    )
+    owner = await session.get(OwnerDomainModel, owner_id)
 
-    owner = owner_execute.scalar_one_or_none()
     if owner is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -191,6 +149,94 @@ async def get_owner_and_domain(
     )
 
 
+@router.patch("/owners/{owner_id}", summary="Change owners data by id")
+async def change_owner(
+    new_owner_data: OwnerDomainChangeDataSchema,
+    owner_id: int,
+    session: SessionDep,
+    current_user: dict[str, str] = Depends(decode_access_token),
+) -> OwnerDomainSchemaResponse:
+    try:
+        if current_user["role"] != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to make this operation",
+            )
+        owner = await session.get(OwnerDomainModel, owner_id)
+        if owner is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Owner with id {owner_id} not found",
+            )
+        update_data = new_owner_data.model_dump(exclude_unset=True)
+
+        for field in ["email", "phone", "passport_number"]:
+            if field in update_data:
+                is_field_exists = await session.execute(
+                    select(
+                        exists().where(
+                            getattr(OwnerDomainModel, field) == update_data[field]
+                        )
+                    )
+                )
+                if is_field_exists.scalar():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"{field.replace("_"," ").title()} already exists",
+                    )
+
+        for field, value in update_data.items():
+            setattr(owner, field, value)
+
+        await session.commit()
+        return owner
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
+@router.delete(
+    "/owners/{owner_id}",
+    summary="Delete owner by id",
+    status_code=status.HTTP_200_OK,
+)
+async def delete_owner(
+    owner_id: int,
+    session: SessionDep,
+    current_user: dict[str, str] = Depends(decode_access_token),
+) -> MessageSchemaResponse:
+    try:
+        if current_user["role"] != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to make this operation",
+            )
+        owner_execute = await session.execute(
+            delete(OwnerDomainModel).where(OwnerDomainModel.id == owner_id)
+        )
+
+        if owner_execute.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Owner with id {owner_id} not found",
+            )
+
+        await session.commit()
+        return MessageSchemaResponse(message="Owner successfully deleted !")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
+
+
 @router.post("/domains", summary="Create domain", status_code=status.HTTP_201_CREATED)
 async def create_domain(
     domain: DomainSchema,
@@ -235,22 +281,20 @@ async def create_domain(
 
 
 @router.get(
-    "/domains/{id}",
+    "/domains/{domain_id}",
     summary="Get domain information by id",
     status_code=status.HTTP_200_OK,
 )
 async def get_domain(
-    session: SessionDep, id: int, current_username: str = Depends(decode_access_token)
+    session: SessionDep,
+    domain_id: int,
+    current_user: str = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
-    domain_execute = await session.execute(
-        select(DomainModel).where(DomainModel.id == id)
-    )
-
-    domain = domain_execute.scalar_one_or_none()
+    domain = await session.get(DomainModel, domain_id)
     if domain is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Domain with id {id} not found",
+            detail=f"Domain with id {domain_id} not found",
         )
     return domain
 
@@ -453,28 +497,33 @@ async def change_user_domain_permission(
     session: SessionDep,
     current_username: str = Depends(decode_access_token),
 ) -> UserDomainIDSchema:
-
-    user_domain_execute = await session.execute(
-        select(UserDomainModel)
-        .where(UserDomainModel.domain_id == domain_id)
-        .where(UserDomainModel.user_id == user_id)
-    )
-
-    user_domain = user_domain_execute.scalar_one_or_none()
-
-    if user_domain is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
+    try:
+        user_domain_execute = await session.execute(
+            select(UserDomainModel)
+            .where(UserDomainModel.domain_id == domain_id)
+            .where(UserDomainModel.user_id == user_id)
         )
 
-    user_domain.permission = permission.permission
-    user_domain.permission_give_date = datetime.now()
+        user_domain = user_domain_execute.scalar_one_or_none()
 
-    await session.commit()
-    await session.refresh(user_domain)
+        if user_domain is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
+            )
 
-    return user_domain
+        user_domain.permission = permission.permission
+        user_domain.permission_give_date = datetime.now()
+
+        await session.commit()
+        await session.refresh(user_domain)
+
+        return user_domain
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )
 
 
 @router.delete(
@@ -482,26 +531,29 @@ async def change_user_domain_permission(
     summary="Delete user domain by domain_id and user_id",
     status_code=status.HTTP_200_OK,
 )
-async def change_user_domain_permission(
+async def delete_user_domain_permission(
     domain_id: int,
     user_id: int,
     session: SessionDep,
     current_username: str = Depends(decode_access_token),
 ) -> MessageSchemaResponse:
-
-    user_domain_execute = await session.execute(
-        select(UserDomainModel).where(
-            UserDomainModel.domain_id == domain_id,
-            UserDomainModel.user_id == user_id,
+    try:
+        user_domain_execute = await session.execute(
+            delete(UserDomainModel).where(
+                UserDomainModel.domain_id == domain_id,
+                UserDomainModel.user_id == user_id,
+            )
         )
-    )
-    user_domain = user_domain_execute.scalar_one_or_none()
-    if not user_domain:
+        await session.commit()
+        if user_domain_execute.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
+            )
+
+        return MessageSchemaResponse(message="User domain successfully deleted!")
+    except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
         )
-    await session.delete(user_domain)
-    await session.commit()
-
-    return MessageSchemaResponse(message="User domain successfully deleted!")
