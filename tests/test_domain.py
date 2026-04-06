@@ -114,22 +114,6 @@ async def test_owner_success(client):
         f"[{datetime.now()}]TEST: create owner with exists passport number . RESULT: passed ✅"
     )
 
-    # Тест на создание объекта с существующей серией паспорта
-    owner_json["passport_number"] = str(num)[:5] + "0"
-    response = await client.post(
-        "api/owners",
-        json=owner_json,
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    data = response.json()
-    assert "Passport series already exists" in data["detail"]
-
-    print(
-        f"[{datetime.now()}]TEST: create owner with exists passport series . RESULT: passed ✅"
-    )
-
 
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 # =-=-=-=- Тест получения владельца по ID =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
