@@ -2,15 +2,15 @@ from datetime import datetime
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
-from src.auth.schemas import UserProfileSchema
-from src.utils import PermissionEnum
+from src.user.schemas import UserProfileSchema
+from src.utils import PermissionEnum, GenderEnum
 
 
 # =- Owner Model -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 class OwnerDomainSchema(BaseModel):
     first_name: str
     last_name: str
-    gender: str
+    gender: GenderEnum
     email: str
     phone: str
 
@@ -19,7 +19,7 @@ class OwnerDomainSchema(BaseModel):
 
     passport_from: str
     passport_number: str
-    passport_series: int | None
+    passport_series: str | None
 
     issue_date: datetime
     expiry_date: datetime | None
@@ -30,6 +30,22 @@ class OwnerDomainSchema(BaseModel):
 
 class OwnerDomainSchemaResponse(OwnerDomainSchema):
     id: int
+
+
+class OwnerDomainChangeDataSchema(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    birth_date: Optional[datetime] = None
+    birth_place: Optional[str] = None
+    passport_from: Optional[str] = None
+    passport_number: Optional[str] = None
+    passport_series: Optional[str] = None
+    issue_date: Optional[datetime] = None
+    expiry_date: Optional[datetime] = None
+    department_code: Optional[str] = None
+    issue_by: Optional[str] = None
 
 
 # =- Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-
