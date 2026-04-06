@@ -30,7 +30,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_hash.verify(plain_password, hashed_password)
 
 
-def create_access_token(data: Dict[str, str]) -> Dict[str, str]:
+def create_access_token(data: Dict[str, str]) -> str:
     access_data = data.copy()
     access_expire = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -40,7 +40,7 @@ def create_access_token(data: Dict[str, str]) -> Dict[str, str]:
     return access_token
 
 
-def create_refresh_token(data: Dict[str, str]) -> Dict[str, str]:
+def create_refresh_token(data: Dict[str, str]) -> str:
     refresh_data = data.copy()
     refresh_expire = datetime.now(timezone.utc) + timedelta(
         days=REFRESH_TOKEN_EXPIRE_DAYS
@@ -63,13 +63,20 @@ async def decode_access_token(
                 detail="Invalid token type. Expected access token.",
             )
 
-        username = payload.get("sub")
-        if username is None:
+        id = payload.get("sub")
+        if id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
             )
-        return username
+        role = payload.get("role")
+        if role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        current_user = {"id": id, "role": role}
+        return current_user
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
