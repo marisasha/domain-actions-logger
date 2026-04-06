@@ -12,5 +12,10 @@ class PermissionEnum(str, Enum):
     ADMIN = "admin"
 
 
+class GenderEnum(str, Enum):
+    Male = "M"
+    Female = "F"
+
+
 def n_print(data):
     print("\n\n\n\n\n\n", data, "\n\n\n\n\n\n")
