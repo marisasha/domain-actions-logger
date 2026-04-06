@@ -6,6 +6,7 @@ from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.user.models import UserModel
 
 
 class OwnerDomainModel(Base):
@@ -14,7 +15,9 @@ class OwnerDomainModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     first_name: Mapped[str]
     last_name: Mapped[str]
-    gender: Mapped[str]
+    gender: Mapped[str] = mapped_column(
+        CheckConstraint("gender IN ('M', 'F')", name="check_gender_valid")
+    )
     email: Mapped[str] = mapped_column(unique=True)
     phone: Mapped[str] = mapped_column(unique=True)
 
@@ -23,7 +26,7 @@ class OwnerDomainModel(Base):
 
     passport_from: Mapped[str]
     passport_number: Mapped[str] = mapped_column(unique=True)
-    passport_series: Mapped[int | None] = mapped_column(nullable=True, unique=True)
+    passport_series: Mapped[str | None] = mapped_column(nullable=True)
 
     issue_date: Mapped[datetime]
     expiry_date: Mapped[datetime | None] = mapped_column(nullable=True)
