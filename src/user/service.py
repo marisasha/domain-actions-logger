@@ -7,6 +7,7 @@ from src.user.models import *
 from src.user.dependencies import SessionDep
 
 from src.auth.security import decode_access_token, hash_password
+from src.auth.schemas import CurrentUserSchema
 from src.utils import n_print
 
 router = APIRouter(tags=["api user"], prefix="/api")
@@ -60,10 +61,10 @@ async def change_user(
     new_user_data: UserChangeDataSchema,
     user_id: int,
     session: SessionDep,
-    current_user: dict[str, str] = Depends(decode_access_token),
+    current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> UserSchemaResponse:
     try:
-        if user_id != int(current_user["id"]) and current_user["role"] != "admin":
+        if user_id != int(current_user.id) and current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to make this operation",
@@ -110,22 +111,22 @@ async def change_user(
     summary="Delete user by id",
     status_code=status.HTTP_200_OK,
 )
-async def delete_owner(
+async def delete_user(
     user_id: int,
     session: SessionDep,
-    current_user: dict[str, str] = Depends(decode_access_token),
+    current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> MessageSchemaResponse:
     try:
-        if user_id != int(current_user["id"]) and current_user["role"] != "admin":
+        if user_id != current_user.id and current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to make this operation",
             )
-        owner_execute = await session.execute(
+        user_execute = await session.execute(
             delete(UserModel).where(UserModel.id == user_id)
         )
 
-        if owner_execute.rowcount == 0:
+        if user_execute.rowcount == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with id {user_id} not found",
