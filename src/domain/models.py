@@ -9,40 +9,10 @@ from src.database import Base
 from src.user.models import UserModel
 
 
-class OwnerDomainModel(Base):
-    __tablename__ = "owner_domain"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    first_name: Mapped[str]
-    last_name: Mapped[str]
-    gender: Mapped[str] = mapped_column(
-        CheckConstraint("gender IN ('M', 'F')", name="check_gender_valid")
-    )
-    email: Mapped[str] = mapped_column(unique=True)
-    phone: Mapped[str] = mapped_column(unique=True)
-
-    birth_date: Mapped[datetime]
-    birth_place: Mapped[str]
-
-    passport_from: Mapped[str]
-    passport_number: Mapped[str] = mapped_column(unique=True)
-    passport_series: Mapped[str | None] = mapped_column(nullable=True)
-
-    issue_date: Mapped[datetime]
-    expiry_date: Mapped[datetime | None] = mapped_column(nullable=True)
-
-    department_code: Mapped[str | None] = mapped_column(nullable=True)
-    issue_by: Mapped[str]
-
-
 class DomainModel(Base):
     __tablename__ = "domain"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    owner_id: Mapped[int] = mapped_column(
-        ForeignKey("owner_domain.id", ondelete="CASCADE")
-    )
-
     name: Mapped[str] = mapped_column(unique=True)
     registration_date: Mapped[datetime]
     expiry_date: Mapped[datetime]
@@ -67,9 +37,26 @@ class UserDomainModel(Base):
 
     permission: Mapped[str] = mapped_column(
         CheckConstraint(
-            "permission IN ('user', 'moderator', 'admin')",
+            "permission IN ('user', 'moderator', 'admin','owner')",
             name="check_permission_valid",
         )
     )
     permission_give_date: Mapped[datetime]
     last_used_date: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class Move(Base):
+    __tablename__ = "user_domain_move"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_domain_id: Mapped[int] = mapped_column(
+        ForeignKey("user_domain.id", ondelete="CASCADE")
+    )
+
+    type: Mapped[str] = mapped_column(
+        CheckConstraint(
+            "type IN ('CREATE','READ','UPDATE','DELETE')", name="check_type_valid"
+        )
+    )
+    description: Mapped[str]
+    date: Mapped[datetime]
