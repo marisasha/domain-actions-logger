@@ -6,51 +6,8 @@ from src.user.schemas import UserProfileSchema
 from src.utils import PermissionEnum, GenderEnum
 
 
-# =- Owner Model -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-class OwnerDomainSchema(BaseModel):
-    first_name: str
-    last_name: str
-    gender: GenderEnum
-    email: str
-    phone: str
-
-    birth_date: datetime
-    birth_place: str
-
-    passport_from: str
-    passport_number: str
-    passport_series: str | None
-
-    issue_date: datetime
-    expiry_date: datetime | None
-
-    department_code: str | None
-    issue_by: str
-
-
-class OwnerDomainSchemaResponse(OwnerDomainSchema):
-    id: int
-
-
-class OwnerDomainChangeDataSchema(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    birth_date: Optional[datetime] = None
-    birth_place: Optional[str] = None
-    passport_from: Optional[str] = None
-    passport_number: Optional[str] = None
-    passport_series: Optional[str] = None
-    issue_date: Optional[datetime] = None
-    expiry_date: Optional[datetime] = None
-    department_code: Optional[str] = None
-    issue_by: Optional[str] = None
-
-
 # =- Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-
 class DomainSchema(BaseModel):
-    owner_id: int
     name: str
     registration_date: datetime
     expiry_date: datetime
@@ -65,12 +22,6 @@ class DomainSchemaResponse(DomainSchema):
 class DomainProfileSchema(BaseModel):
     id: int
     name: str
-
-
-# =- Owner Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-class OwnerWithDomainSchema(DomainSchemaResponse):
-    owner_first_name: str
-    owner_last_name: str
 
 
 # =- User Domain Model -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-
