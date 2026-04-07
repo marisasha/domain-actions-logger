@@ -8,6 +8,7 @@ import jwt
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from dotenv import load_dotenv
+from src.auth.schemas import CurrentUserSchema
 from src.utils import ENV_PATH
 import os
 
@@ -52,7 +53,7 @@ def create_refresh_token(data: Dict[str, str]) -> str:
 
 async def decode_access_token(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-):
+) -> CurrentUserSchema:
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -75,7 +76,7 @@ async def decode_access_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
             )
-        current_user = {"id": id, "role": role}
+        current_user = CurrentUserSchema(id=int(id), role=role)
         return current_user
     except jwt.ExpiredSignatureError:
         raise HTTPException(
