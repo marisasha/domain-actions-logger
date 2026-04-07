@@ -12,3 +12,8 @@ class TokenSchema(BaseModel):
 class UserAuthorizationSchema(BaseModel):
     username: str
     password: str
+
+
+class CurrentUserSchema(BaseModel):
+    id: int
+    role: str
