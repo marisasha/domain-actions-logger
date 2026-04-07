@@ -10,6 +10,7 @@ class PermissionEnum(str, Enum):
     USER = "user"
     MODERATOR = "moderator"
     ADMIN = "admin"
+    OWNER = "owner"
 
 
 class GenderEnum(str, Enum):
