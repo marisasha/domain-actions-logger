@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.user.schemas import UserProfileSchema
-from src.utils import PermissionEnum, GenderEnum
+from src.utils import PermissionEnum, GenderEnum, MoveEnum
 
 
 # =- Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-
@@ -17,6 +17,8 @@ class DomainSchema(BaseModel):
 
 class DomainSchemaResponse(DomainSchema):
     id: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DomainProfileSchema(BaseModel):
@@ -37,42 +39,61 @@ class UserDomainIDSchema(UserDomainSchema):
 
 
 class UserDomainSchemaResponse(UserDomainSchema):
+    user_domain_id: int
     domain_name: str
     user_first_name: str
     user_last_name: str
 
 
 class PermissionChangeSchema(BaseModel):
+    user_id: int
+    domain_id: int
     permission: PermissionEnum
 
 
-class DomainPermissionSchema(BaseModel):
+class DomainPermissionSchema(UserDomainSchema):
+    user_domain_id: int
     domain_name: str
-    permission: PermissionEnum
-    permission_give_date: datetime
-    last_used_date: datetime
 
 
-class UserPermissionSchema(BaseModel):
+class UserPermissionSchema(UserDomainSchema):
+    user_domain_id: int
     first_name: str
     last_name: str
-    permission: PermissionEnum
-    permission_give_date: datetime
-    last_used_date: datetime
 
 
-class UserDomainsResponse(BaseModel):
+class UserDomainsPermissionResponse(BaseModel):
     user: Optional[UserProfileSchema]
     domains: List[DomainPermissionSchema]
 
 
-class DomainUsersResponse(BaseModel):
+class DomainUsersPermissionResponse(BaseModel):
     domain: Optional[DomainProfileSchema]
     users: List[UserPermissionSchema]
 
 
+# =- Move Schema -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+class MoveSchema(BaseModel):
+    user_domain_id: int
+    type: MoveEnum
+    description: str
+    date: datetime
+
+
+class MoveSchemaResponse(MoveSchema):
+    id: int
+
+
+class UserMoveSchema(MoveSchema):
+    first_name: str
+    last_name: str
+
+
+class DomainUsersMovesResponse(BaseModel):
+    domain: Optional[DomainProfileSchema]
+    users: List[UserMoveSchema]
+
+
 # =- Message Response -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-
 class MessageSchemaResponse(BaseModel):
     message: str
