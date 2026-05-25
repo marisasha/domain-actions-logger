@@ -45,7 +45,7 @@ class UserDomainModel(Base):
     last_used_date: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
-class Move(Base):
+class MoveModel(Base):
     __tablename__ = "user_domain_move"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -55,7 +55,7 @@ class Move(Base):
 
     type: Mapped[str] = mapped_column(
         CheckConstraint(
-            "type IN ('CREATE','READ','UPDATE','DELETE')", name="check_type_valid"
+            "type IN ('create','read','update','delete')", name="check_type_valid"
         )
     )
     description: Mapped[str]
