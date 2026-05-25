@@ -3,6 +3,12 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import delete, exists, func, select
 from fastapi import status, Depends
 
+from src.domain.permission_checker import (
+    check_permission_for_correct,
+    require_permission,
+)
+from src.redis_cache.decorators import cache
+
 from src.domain.dependencies import SessionDep
 from src.domain.models import *
 from src.domain.schemas import *
@@ -29,7 +35,6 @@ async def create_domain(
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
     try:
-
         is_domain_name_exist = await session.execute(
             select(exists().where(DomainModel.name == domain.name))
         )
@@ -73,17 +78,26 @@ async def create_domain(
     summary="Get domain information by id",
     status_code=status.HTTP_200_OK,
 )
+@require_permission(management_role="user")
 async def get_domain(
     session: SessionDep,
     domain_id: int,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
+
     domain = await session.get(DomainModel, domain_id)
+
+    if not domain:
+        return None
+
+    domain = DomainSchemaResponse.model_validate(domain)
+
     if domain is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Domain with id {domain_id} not found",
         )
+
     return domain
 
 
@@ -92,36 +106,13 @@ async def get_domain(
     summary="Create relationship user and domain",
     status_code=status.HTTP_201_CREATED,
 )
+@require_permission(management_role="admin")
 async def create_user_domain(
     user_domain: UserDomainIDSchema,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> UserDomainIDSchema:
     try:
-        # Проверка прав доступа(разрешено владельцу/админу домена , админу сайта)
-        current_user_permission_execute = await session.execute(
-            select(UserDomainModel.permission).where(
-                UserDomainModel.user_id == current_user.id,
-                UserDomainModel.domain_id == user_domain.domain_id,
-            )
-        )
-        current_user_permission = current_user_permission_execute.scalar_one_or_none()
-        access_for_change = False
-        # Владелец может удалить связь при любых права на домен, админ домена может удалить связь если права != владелец или админ
-        if current_user.role == "admin":
-            access_for_change = True
-        if current_user_permission == "owner" and user_domain.permission != "owner":
-            access_for_change = True
-        if current_user_permission == "admin":
-            if user_domain.permission != "owner" and user_domain.permission != "admin":
-                access_for_change = True
-
-        if not access_for_change:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to make this operation",
-            )
-
         is_user_and_domain_exists = await session.execute(
             select(
                 exists().where(
@@ -166,11 +157,13 @@ async def create_user_domain(
     summary="Get all users for domain by domain_id",
     status_code=status.HTTP_200_OK,
 )
+# Проверка прав доступа к данным (данные посмотреть может модератор и старше)
+@require_permission(management_role="moderator")
 async def get_users_for_domain(
     domain_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
-) -> DomainUsersResponse:
+) -> DomainUsersPermissionResponse:
 
     domain_users_execute = await session.execute(
         select(
@@ -179,6 +172,7 @@ async def get_users_for_domain(
             UserDomainModel.user_id,
             UserModel.first_name.label("user_first_name"),
             UserModel.last_name.label("user_last_name"),
+            UserDomainModel.id,
             UserDomainModel.permission,
             UserDomainModel.permission_give_date,
             UserDomainModel.last_used_date,
@@ -190,20 +184,7 @@ async def get_users_for_domain(
 
     domain_users_rows = domain_users_execute.all()
     if not domain_users_rows:
-        return DomainUsersResponse(domain=None, users=[])
-
-    # Проверка прав доступа к данным (данные посмотреть может только пользователь домена или администратор сайта)
-    access_for_data = False
-    for dur in domain_users_rows:
-        if current_user.id == dur.user_id:
-            access_for_data = True
-            break
-
-    if not access_for_data and current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to make this operation",
-        )
+        return DomainUsersPermissionResponse(domain=None, users=[])
 
     domain = DomainProfileSchema(
         id=domain_users_rows[0].domain_id, name=domain_users_rows[0].domain_name
@@ -211,6 +192,7 @@ async def get_users_for_domain(
 
     users = [
         UserPermissionSchema(
+            user_domain_id=row.id,
             first_name=row.user_first_name,
             last_name=row.user_last_name,
             permission=row.permission,
@@ -220,7 +202,7 @@ async def get_users_for_domain(
         for row in domain_users_rows
     ]
 
-    return DomainUsersResponse(domain=domain, users=users)
+    return DomainUsersPermissionResponse(domain=domain, users=users)
 
 
 @router.get(
@@ -228,18 +210,13 @@ async def get_users_for_domain(
     summary="Get all domains for user by user_id",
     status_code=status.HTTP_200_OK,
 )
+# Проверка прав доступа к данным (разрешено текущиму пользователю при current_user.id==user_id , администратору сайта)
+@require_permission(authentication=True)
 async def get_domains_for_user(
     user_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
-) -> UserDomainsResponse:
-
-    # Проверка прав доступа к данным (разрешено текущиму пользователю при current_user.id==user_id , администратору сайта)
-    if user_id != current_user.id and current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to make this operation",
-        )
+) -> UserDomainsPermissionResponse:
 
     user_domains_execute = await session.execute(
         select(
@@ -247,6 +224,7 @@ async def get_domains_for_user(
             UserModel.first_name.label("user_first_name"),
             UserModel.last_name.label("user_last_name"),
             DomainModel.name.label("domain_name"),
+            UserDomainModel.id,
             UserDomainModel.permission,
             UserDomainModel.permission_give_date,
             UserDomainModel.last_used_date,
@@ -257,7 +235,7 @@ async def get_domains_for_user(
     )
     user_domains_rows = user_domains_execute.all()
     if not user_domains_rows:
-        return UserDomainsResponse(user=None, domains=[])
+        return UserDomainsPermissionResponse(user=None, domains=[])
 
     user = UserProfileSchema(
         id=user_domains_rows[0].user_id,
@@ -266,6 +244,7 @@ async def get_domains_for_user(
     )
     domains = [
         DomainPermissionSchema(
+            user_domain_id=row.id,
             domain_name=row.domain_name,
             permission=row.permission,
             permission_give_date=row.permission_give_date,
@@ -274,13 +253,17 @@ async def get_domains_for_user(
         for row in user_domains_rows
     ]
 
-    return UserDomainsResponse(user=user, domains=domains)
+    return UserDomainsPermissionResponse(user=user, domains=domains)
 
 
 @router.get(
     "/domains/{domain_id}/users/{user_id}",
     summary="Get user domain by domain_id and user_id",
     status_code=status.HTTP_200_OK,
+)
+@require_permission(
+    management_role="moderator",
+    authentication=True,
 )
 async def get_user_domain(
     domain_id: int,
@@ -293,6 +276,7 @@ async def get_user_domain(
             UserModel.first_name.label("user_first_name"),
             UserModel.last_name.label("user_last_name"),
             DomainModel.name.label("domain_name"),
+            UserDomainModel.id,
             UserDomainModel.permission,
             UserDomainModel.permission_give_date,
             UserDomainModel.last_used_date,
@@ -309,24 +293,8 @@ async def get_user_domain(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
         )
-    # Проверка прав доступа(разрешено владельцу/админу домена , текущему пользователю при user_id != current_user.id , админу сайта)
-    if user_id != current_user.id and current_user.role != "admin":
-        # Получаем права текущего пользователя на этот домен
-        current_user_permission_execute = await session.execute(
-            select(UserDomainModel.permission).where(
-                UserDomainModel.user_id == current_user.id,
-                UserDomainModel.domain_id == domain_id,
-            )
-        )
-        current_user_permission = current_user_permission_execute.scalar_one_or_none()
-        # Проверяем, есть ли у текущего пользователя права администратора или владельца
-        if current_user_permission not in ["admin", "owner"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to make this operation",
-            )
-
     user_domain = UserDomainSchemaResponse(
+        user_domain_id=user_domain_tuple.id,
         user_first_name=user_domain_tuple.user_first_name,
         user_last_name=user_domain_tuple.user_last_name,
         domain_name=user_domain_tuple.domain_name,
@@ -338,58 +306,23 @@ async def get_user_domain(
 
 
 @router.patch(
-    "/domains/{domain_id}/users/{user_id}",
+    "/domains/users/",
     summary="Change user domain permission by domain_id and user_id",
     status_code=status.HTTP_200_OK,
 )
 async def change_user_domain_permission(
     permission: PermissionChangeSchema,
-    domain_id: int,
-    user_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> UserDomainIDSchema:
     try:
-        user_domain_execute = await session.execute(
-            select(UserDomainModel)
-            .where(UserDomainModel.domain_id == domain_id)
-            .where(UserDomainModel.user_id == user_id)
+        user_domain = await check_permission_for_correct(
+            domain_id=permission.domain_id,
+            user_id=permission.user_id,
+            current_user=current_user,
+            session=session,
+            permission=permission.permission,
         )
-
-        user_domain = user_domain_execute.scalar_one_or_none()
-        if user_domain is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
-            )
-
-        # Проверка прав доступа(разрешено владельцу/админу домена , админу сайта)
-        current_user_permission_execute = await session.execute(
-            select(UserDomainModel.permission).where(
-                UserDomainModel.user_id == current_user.id,
-                UserDomainModel.domain_id == domain_id,
-            )
-        )
-        current_user_permission = current_user_permission_execute.scalar_one_or_none()
-        access_for_change = False
-        # Владелец может изменять любые права на домен, админ домена может изменять права если права != владелец или админ
-        if current_user.role == "admin":
-            access_for_change = True
-        if current_user_permission == "owner" and permission.permission != "owner":
-            access_for_change = True
-        if current_user_permission == "admin":
-            if permission.permission != "owner" and permission.permission != "admin":
-                if (
-                    user_domain.permission != "owner"
-                    and user_domain.permission != "admin"
-                ):
-                    access_for_change = True
-
-        if not access_for_change:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to make this operation",
-            )
 
         user_domain.permission = permission.permission
         user_domain.permission_give_date = datetime.now()
@@ -419,42 +352,12 @@ async def delete_user_domain_permission(
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> MessageSchemaResponse:
     try:
-        user_domain_execute = await session.execute(
-            select(UserDomainModel)
-            .where(UserDomainModel.domain_id == domain_id)
-            .where(UserDomainModel.user_id == user_id)
+        user_domain = await check_permission_for_correct(
+            domain_id=domain_id,
+            user_id=user_id,
+            current_user=current_user,
+            session=session,
         )
-
-        user_domain = user_domain_execute.scalar_one_or_none()
-        if user_domain is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User domain with domain_id {domain_id} and user_id {user_id} not found",
-            )
-
-        # Проверка прав доступа(разрешено владельцу/админу домена , админу сайта)
-        current_user_permission_execute = await session.execute(
-            select(UserDomainModel.permission).where(
-                UserDomainModel.user_id == current_user.id,
-                UserDomainModel.domain_id == domain_id,
-            )
-        )
-        current_user_permission = current_user_permission_execute.scalar_one_or_none()
-        access_for_change = False
-        # Владелец может удалить связь при любых права на домен, админ домена может удалить связь если права != владелец или админ
-        if current_user.role == "admin":
-            access_for_change = True
-        if current_user_permission == "owner":
-            access_for_change = True
-        if current_user_permission == "admin":
-            if user_domain.permission != "owner" and user_domain.permission != "admin":
-                access_for_change = True
-
-        if not access_for_change:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to make this operation",
-            )
         await session.delete(user_domain)
         await session.commit()
         return MessageSchemaResponse(message="User domain successfully deleted!")
@@ -465,3 +368,108 @@ async def delete_user_domain_permission(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
+
+
+@router.post(
+    "/domains/users/moves",
+    summary="Create Move from user in domain",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_move(
+    move: MoveSchema,
+    session: SessionDep,
+    current_user: CurrentUserSchema = Depends(decode_access_token),
+) -> MoveSchemaResponse:
+    # Проверка прав доступа(Пользователь домена может совершить действие только от своего аккаунта)
+    user_domain_execute = await session.execute(
+        select(UserDomainModel).where(UserDomainModel.id == move.user_domain_id)
+    )
+    user_domain = user_domain_execute.scalar_one_or_none()
+
+    if user_domain.user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to make this operation",
+        )
+
+    new_move = MoveModel(
+        user_domain_id=move.user_domain_id,
+        type=move.type,
+        description=move.description,
+        date=datetime.now(),
+    )
+
+    session.add(new_move)
+    await session.commit()
+
+    return new_move
+
+
+@router.get(
+    "/domains/{domain_id}/users/moves",
+    summary="Get all move data for user domain by user_domain_id",
+    status_code=status.HTTP_200_OK,
+)
+async def get_all_moves(
+    domain_id: int,
+    session: SessionDep,
+    current_user: CurrentUserSchema = Depends(decode_access_token),
+) -> DomainUsersMovesResponse:
+    # Проверка прав доступа(Владелец/админ/модератор домена может посмотреть данные)
+
+    current_user_permission_execute = await session.execute(
+        select(UserDomainModel.permission).where(
+            UserDomainModel.domain_id == domain_id,
+            UserDomainModel.user_id == current_user.id,
+        )
+    )
+    current_user_permission = current_user_permission_execute.scalar_one_or_none()
+
+    if (
+        not current_user_permission or current_user_permission == "user"
+    ) and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to make this operation",
+        )
+
+    # Получение данных для домена по domain_id
+    domain_moves_execute = await session.execute(
+        select(
+            DomainModel.id.label("domain_id"),
+            DomainModel.name.label("domain_name"),
+            UserModel.first_name.label("user_first_name"),
+            UserModel.last_name.label("user_last_name"),
+            MoveModel.user_domain_id,
+            MoveModel.type,
+            MoveModel.description,
+            MoveModel.date,
+        )
+        .join(UserDomainModel, UserDomainModel.id == MoveModel.user_domain_id)
+        .join(UserModel, UserModel.id == UserDomainModel.user_id)
+        .join(DomainModel, DomainModel.id == UserDomainModel.domain_id)
+        .where(DomainModel.id == domain_id)
+    )
+
+    domain_moves_rows = domain_moves_execute.all()
+    if not domain_moves_rows:
+        return DomainUsersMovesResponse(domain=None, users=[])
+
+    domain = DomainProfileSchema(
+        id=domain_moves_rows[0].domain_id,
+        name=domain_moves_rows[0].domain_name,
+    )
+
+    users = [
+        UserMoveSchema(
+            first_name=row.user_first_name,
+            last_name=row.user_last_name,
+            user_domain_id=row.user_domain_id,
+            type=row.type,
+            description=row.description,
+            date=row.date,
+        )
+        for row in domain_moves_rows
+    ]
+
+    return DomainUsersMovesResponse(domain=domain, users=users)
