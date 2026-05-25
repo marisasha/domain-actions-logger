@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi import status
 from sqlalchemy import delete, exists, func, select
 
+
 from src.user.schemas import *
 from src.user.models import *
 from src.user.dependencies import SessionDep
@@ -35,9 +36,11 @@ async def create_user(
             password=hash_password(user.password),
             first_name=user.first_name,
             last_name=user.last_name,
+            gender=str(user.gender),
             email=user.email,
             birth_date=user.birth_date,
             phone=user.phone,
+            is_admin=False,
         )
 
         session.add(new_user)
