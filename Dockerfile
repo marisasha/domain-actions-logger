@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements/requirments_linux.txt /app/requirements/requirments_linux.txt
+COPY requirements/requirements_linux.txt /app/requirements/requirements_linux.txt
 
-RUN pip install --no-cache-dir -r /app/requirements/requirments_linux.txt
+RUN pip install --no-cache-dir -r /app/requirements/requirements_linux.txt
 
 COPY . .
 
