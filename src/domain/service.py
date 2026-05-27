@@ -78,7 +78,8 @@ async def create_domain(
     summary="Get domain information by id",
     status_code=status.HTTP_200_OK,
 )
-@require_permission(management_role="user")
+@require_permission(role="user")
+@cache(expire=30, prefix="get_domain", model=DomainSchemaResponse)
 async def get_domain(
     session: SessionDep,
     domain_id: int,
@@ -106,7 +107,7 @@ async def get_domain(
     summary="Create relationship user and domain",
     status_code=status.HTTP_201_CREATED,
 )
-@require_permission(management_role="admin")
+@require_permission(role="admin")
 async def create_user_domain(
     user_domain: UserDomainIDSchema,
     session: SessionDep,
@@ -158,7 +159,8 @@ async def create_user_domain(
     status_code=status.HTTP_200_OK,
 )
 # Проверка прав доступа к данным (данные посмотреть может модератор и старше)
-@require_permission(management_role="moderator")
+@require_permission(role="moderator")
+@cache(expire=300, prefix="get_users_for_domain", model=DomainUsersPermissionResponse)
 async def get_users_for_domain(
     domain_id: int,
     session: SessionDep,
@@ -212,6 +214,7 @@ async def get_users_for_domain(
 )
 # Проверка прав доступа к данным (разрешено текущиму пользователю при current_user.id==user_id , администратору сайта)
 @require_permission(authentication=True)
+@cache(expire=50, prefix="get_domains_for_user", model=UserDomainsPermissionResponse)
 async def get_domains_for_user(
     user_id: int,
     session: SessionDep,
@@ -262,9 +265,10 @@ async def get_domains_for_user(
     status_code=status.HTTP_200_OK,
 )
 @require_permission(
-    management_role="moderator",
+    role="moderator",
     authentication=True,
 )
+@cache(expire=300, prefix="get_user_domain", model=UserDomainSchemaResponse)
 async def get_user_domain(
     domain_id: int,
     user_id: int,
@@ -410,6 +414,7 @@ async def create_move(
     summary="Get all move data for user domain by user_domain_id",
     status_code=status.HTTP_200_OK,
 )
+@cache(expire=300, prefix="get_user_domain", model=DomainUsersMovesResponse)
 async def get_all_moves(
     domain_id: int,
     session: SessionDep,
