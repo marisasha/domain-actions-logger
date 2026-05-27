@@ -14,6 +14,8 @@ class UserSchema(BaseModel):
     birth_date: datetime
     phone: str
 
+    model_config = {"from_attributes": True}
+
 
 class UserSchemaResponse(UserSchema):
     id: int
