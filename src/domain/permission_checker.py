@@ -19,7 +19,7 @@ from src.domain.dependencies import SessionDep, get_session
 
 
 def require_permission(
-    management_role: Optional[Literal["owner", "admin", "moderator", "user"]] = None,
+    role: Optional[Literal["owner", "admin", "moderator", "user"]] = None,
     authentication: Optional[bool] = None,
 ):
 
@@ -28,7 +28,7 @@ def require_permission(
         async def wrapper(*args, **kwargs):
             access_role_permission = False
             access_authentication_permission = False
-            if management_role:
+            if role:
                 domain_id = kwargs.get("domain_id")
                 if domain_id is None:
                     for key, value in kwargs.items():
@@ -53,7 +53,7 @@ def require_permission(
                 access_role_permission = await check_permission_for_management(
                     domain_id=domain_id,
                     current_user=current_user,
-                    required_role=management_role,
+                    required_role=role,
                     session=session,
                 )
 
@@ -65,7 +65,6 @@ def require_permission(
                         detail="user_id not found in request body",
                     )
                 current_user = kwargs.get("current_user")
-                print(user_id, current_user.id, "\n\n\n\n\n")
                 if user_id != current_user.id and current_user.role != "admin":
                     access_authentication_permission = False
                 else:
