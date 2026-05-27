@@ -8,14 +8,14 @@ from pydantic import BaseModel
 
 
 def cache(
-    expire: int = 300,
-    prefix: str = "",
+    expire: int,
+    prefix: str,
     model: Optional[Type[BaseModel]] = None,
 ):
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            # --- Генерация ключа ---
             cache_parts = [prefix if prefix else func.__name__]
 
             for arg in args:
@@ -34,35 +34,27 @@ def cache(
 
             cache_key = hashlib.md5("_".join(cache_parts).encode()).hexdigest()
 
-            # --- Попытка получить из кеша ---
             cached = await redis_service.get(cache_key)
             if cached is not None:
+                if isinstance(cached, list):
+                    return [model.model_validate(json.loads(c)) for c in cached]
+                else:
+                    return model.model_validate(json.loads(cached))
 
-                # 👇 если указана модель — возвращаем Pydantic
-                if model:
-                    return model.model_validate_json(cached)
-
-                return json.loads(cached)
-
-            # --- Выполняем функцию ---
             result = await func(*args, **kwargs)
-
             if result is not None:
-                # 👇 если это Pydantic модель
                 if isinstance(result, BaseModel):
                     await redis_service.set(
                         cache_key,
                         result.model_dump_json(),
                         expire,
                     )
+                elif isinstance(result, list) and result:
+                    result_to_json = [r.model_dump_json() for r in result]
+                    await redis_service.set(cache_key, result_to_json, expire)
                 else:
-                    await redis_service.set(
-                        cache_key,
-                        json.dumps(result),
-                        expire,
-                    )
+                    await redis_service.set(cache_key, result, expire)
 
-            print("cache true\n\n\n\n")
             return result
 
         return wrapper
