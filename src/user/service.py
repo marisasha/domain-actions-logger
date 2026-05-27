@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi import status
 from sqlalchemy import delete, exists, func, select
@@ -6,6 +8,7 @@ from sqlalchemy import delete, exists, func, select
 from src.user.schemas import *
 from src.user.models import *
 from src.user.dependencies import SessionDep
+from src.redis_cache.decorators import cache
 
 from src.auth.security import decode_access_token, hash_password
 from src.auth.schemas import CurrentUserSchema
@@ -144,3 +147,16 @@ async def delete_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         )
+
+
+@router.get(path="/users", summary="Get all users", status_code=status.HTTP_200_OK)
+@cache(expire=30, prefix="get_users", model=UserSchema)
+async def get_users(session: SessionDep) -> list[UserSchema]:
+    users_execute = await session.execute(select(UserModel))
+    users = users_execute.scalars().all()
+    if not users:
+        return None
+    print(type(users), type(users[0]), "\n\n\n\n\n\n\n")
+    users = [UserSchema.model_validate(u) for u in users]
+    print(type(users), "\n\n\n\n\n\n\n")
+    return users
