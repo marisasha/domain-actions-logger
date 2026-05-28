@@ -1,4 +1,5 @@
 import json
+import random
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi import status
@@ -9,6 +10,7 @@ from src.user.schemas import *
 from src.user.models import *
 from src.user.dependencies import SessionDep
 from src.redis_cache.decorators import cache
+from src.rabbitmq.service import rabbitmq_service
 
 from src.auth.security import decode_access_token, hash_password
 from src.auth.schemas import CurrentUserSchema
@@ -40,7 +42,6 @@ async def create_user(
             first_name=user.first_name,
             last_name=user.last_name,
             gender=str(user.gender),
-            email=user.email,
             birth_date=user.birth_date,
             phone=user.phone,
             is_admin=False,
@@ -48,6 +49,20 @@ async def create_user(
 
         session.add(new_user)
         await session.commit()
+
+        token = random.randint(100000000000000, 1000000000000000)
+        data_for_email_accept = {
+            "id": new_user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            "token": token,
+        }
+
+        await rabbitmq_service.router.broker.publish(
+            data_for_email_accept, "registration"
+        )
+
         return new_user
     except HTTPException:
         raise
