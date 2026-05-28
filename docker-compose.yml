@@ -1,6 +1,8 @@
 services:
   domain_web:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: web
     ports:
       - "8000:8000"
@@ -9,8 +11,25 @@ services:
     volumes:
       - .:/app
     depends_on:
-      - domain_db
+      domain_db:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: always
+
+  consumer-email:
+    build:
+      context: .
+      dockerfile: Dockerfile.email
+    env_file:
+      - .env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   domain_db:
     image: postgres:17-alpine
     container_name: domain_db
@@ -23,12 +42,33 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     restart: always
+  
   redis:
     image: redis:8-alpine
     container_name: redis
     ports:
       - "6379:6379"
     restart: always
+  
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      
+      - "15672:15672"    
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT__USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT__PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBIT__VHOST}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
 volumes:
   postgres_data:
-
+  rabbitmq_data:
