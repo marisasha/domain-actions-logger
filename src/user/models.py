@@ -19,7 +19,7 @@ class UserModel(Base):
     gender: Mapped[str] = mapped_column(
         CheckConstraint("gender IN ('M', 'F')", name="check_gender_valid"),
     )
-    email: Mapped[str] = mapped_column(unique=True)
+    email: Mapped[str | None] = mapped_column(unique=True, nullable=True, default=None)
     birth_date: Mapped[datetime]
     phone: Mapped[str] = mapped_column(unique=True)
     is_admin: Mapped[bool]
