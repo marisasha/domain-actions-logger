@@ -10,7 +10,7 @@ class UserSchema(BaseModel):
     first_name: str
     last_name: str
     gender: GenderEnum
-    email: str
+    email: Optional[str] = None
     birth_date: datetime
     phone: str
 
