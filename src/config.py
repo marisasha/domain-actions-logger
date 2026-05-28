@@ -13,9 +13,19 @@ class CacheConfig(BaseModel):
     expire_seconds: int
 
 
+class RabbitConfig(BaseModel):
+    host: str
+    port: int
+    user: str
+    password: str
+    vhost: str
+    ssl: bool
+
+
 class Settings(BaseSettings):
     redis: RedisConfig
     cache: CacheConfig
+    rabbit: RabbitConfig
 
     class Config:
         env_file = "../.env"
