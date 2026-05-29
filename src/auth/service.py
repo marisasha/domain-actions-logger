@@ -31,10 +31,10 @@ async def login(data: UserAuthorizationSchema, session: SessionDep) -> TokenSche
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
-    is_admin = "admin" if user.is_admin else "user"
+    role = "admin" if user.is_admin else "user"
 
-    access_token = create_access_token({"sub": str(user.id), "role": is_admin})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    access_token = create_access_token({"sub": str(user.id), "role": role})
+    refresh_token = create_refresh_token({"sub": str(user.id), "role": role})
     return TokenSchema(access=access_token, refresh=refresh_token)
 
 
@@ -42,7 +42,7 @@ async def login(data: UserAuthorizationSchema, session: SessionDep) -> TokenSche
     "/auth/token/refresh", summary="Token refresher", status_code=status.HTTP_200_OK
 )
 async def refresh_token(
-    username: str = Depends(decode_refresh_token),
+    user: CurrentUserSchema = Depends(decode_refresh_token),
 ) -> dict[str, str]:
-    access_token = create_access_token({"sub": username})
+    access_token = create_access_token({"sub": str(user.id), "role": user.role})
     return {"access": access_token}
