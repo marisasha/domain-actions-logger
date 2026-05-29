@@ -15,4 +15,4 @@ COPY . .
 
 ENV PYTHONPATH=/app/src
 
-CMD ["python3", "-m", "src.email_sender.service"]
+CMD ["python3", "-m", "src.email_consumer.service"]
