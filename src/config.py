@@ -21,6 +21,10 @@ class RabbitConfig(BaseModel):
     vhost: str
     ssl: bool
 
+    def get_rabbitmq_url(self):
+        scheme = "amqps" if self.ssl else "amqp"
+        return f"{scheme}://{self.user}:{self.password}@{self.host}:{self.port}/{self.vhost}"
+
 
 class Settings(BaseSettings):
     redis: RedisConfig
