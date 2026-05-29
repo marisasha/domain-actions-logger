@@ -91,7 +91,7 @@ class UserMoveSchema(MoveSchema):
 
 class DomainUsersMovesResponse(BaseModel):
     domain: Optional[DomainProfileSchema]
-    users: List[UserMoveSchema]
+    moves: List[UserMoveSchema]
 
 
 # =- Message Response -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
