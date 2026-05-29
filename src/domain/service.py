@@ -3,15 +3,18 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import delete, exists, func, select
 from fastapi import status, Depends
 
+
+from src.exeptions import exception_handler
 from src.domain.permission_checker import (
     check_permission_for_correct,
     require_permission,
 )
-from src.redis_cache.decorators import cache
+from src.redis.decorators import cache
 
 from src.domain.dependencies import SessionDep
 from src.domain.models import *
 from src.domain.schemas import *
+from src.logger import logger
 
 from src.user.schemas import UserProfileSchema
 from src.user.models import UserModel
@@ -29,48 +32,41 @@ router = APIRouter(
 
 
 @router.post("/domains", summary="Create domain", status_code=status.HTTP_201_CREATED)
+@exception_handler
 async def create_domain(
     domain: DomainSchema,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
-    try:
-        is_domain_name_exist = await session.execute(
-            select(exists().where(DomainModel.name == domain.name))
-        )
-        if is_domain_name_exist.scalar():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Domain with name {domain.name} already exists",
-            )
-
-        new_domain = DomainModel(
-            name=domain.name,
-            registration_date=domain.registration_date,
-            expiry_date=domain.expiry_date,
-            status=domain.status,
-            registration_certificate_url=domain.registration_certificate_url,
-        )
-        session.add(new_domain)
-        await session.flush()
-
-        new_user_domain = UserDomainModel(
-            user_id=current_user.id,
-            domain_id=new_domain.id,
-            permission="owner",
-            permission_give_date=datetime.now(),
-            last_used_date=datetime.now(),
-        )
-        session.add(new_user_domain)
-        await session.commit()
-        return new_domain
-    except HTTPException:
-        raise
-    except Exception as e:
+    is_domain_name_exist = await session.execute(
+        select(exists().where(DomainModel.name == domain.name))
+    )
+    if is_domain_name_exist.scalar():
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal Server Error",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Domain with name {domain.name} already exists",
         )
+
+    new_domain = DomainModel(
+        name=domain.name,
+        registration_date=domain.registration_date,
+        expiry_date=domain.expiry_date,
+        status=domain.status,
+        registration_certificate_url=domain.registration_certificate_url,
+    )
+    session.add(new_domain)
+    await session.flush()
+
+    new_user_domain = UserDomainModel(
+        user_id=current_user.id,
+        domain_id=new_domain.id,
+        permission="owner",
+        permission_give_date=datetime.now(),
+        last_used_date=datetime.now(),
+    )
+    session.add(new_user_domain)
+    await session.commit()
+    return new_domain
 
 
 @router.get(
@@ -78,14 +74,14 @@ async def create_domain(
     summary="Get domain information by id",
     status_code=status.HTTP_200_OK,
 )
+@exception_handler
 @require_permission(role="user")
-@cache(expire=30, prefix="get_domain", model=DomainSchemaResponse)
+@cache(expire=3 * 60, prefix="get_domain", model=DomainSchemaResponse)
 async def get_domain(
     session: SessionDep,
     domain_id: int,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainSchemaResponse:
-
     domain = await session.get(DomainModel, domain_id)
 
     if not domain:
@@ -107,6 +103,7 @@ async def get_domain(
     summary="Create relationship user and domain",
     status_code=status.HTTP_201_CREATED,
 )
+@exception_handler
 @require_permission(role="admin")
 async def create_user_domain(
     user_domain: UserDomainIDSchema,
@@ -139,17 +136,10 @@ async def create_user_domain(
         session.add(new_user_domain)
         await session.commit()
         return new_user_domain
-    except HTTPException:
-        raise
     except DBAPIError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with id {user_domain.user_id} or domain with id {user_domain.domain_id} not found",
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal Server Error",
         )
 
 
@@ -158,7 +148,7 @@ async def create_user_domain(
     summary="Get all users for domain by domain_id",
     status_code=status.HTTP_200_OK,
 )
-# Проверка прав доступа к данным (данные посмотреть может модератор и старше)
+@exception_handler
 @require_permission(role="moderator")
 @cache(expire=300, prefix="get_users_for_domain", model=DomainUsersPermissionResponse)
 async def get_users_for_domain(
@@ -166,7 +156,6 @@ async def get_users_for_domain(
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainUsersPermissionResponse:
-
     domain_users_execute = await session.execute(
         select(
             UserDomainModel.domain_id,
@@ -212,6 +201,7 @@ async def get_users_for_domain(
     summary="Get all domains for user by user_id",
     status_code=status.HTTP_200_OK,
 )
+@exception_handler
 # Проверка прав доступа к данным (разрешено текущиму пользователю при current_user.id==user_id , администратору сайта)
 @require_permission(authentication=True)
 @cache(expire=50, prefix="get_domains_for_user", model=UserDomainsPermissionResponse)
@@ -264,6 +254,7 @@ async def get_domains_for_user(
     summary="Get user domain by domain_id and user_id",
     status_code=status.HTTP_200_OK,
 )
+@exception_handler
 @require_permission(
     role="moderator",
     authentication=True,
@@ -275,6 +266,7 @@ async def get_user_domain(
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> UserDomainSchemaResponse:
+
     user_domain_execute = await session.execute(
         select(
             UserModel.first_name.label("user_first_name"),
@@ -314,34 +306,27 @@ async def get_user_domain(
     summary="Change user domain permission by domain_id and user_id",
     status_code=status.HTTP_200_OK,
 )
+@exception_handler
 async def change_user_domain_permission(
     permission: PermissionChangeSchema,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> UserDomainIDSchema:
-    try:
-        user_domain = await check_permission_for_correct(
-            domain_id=permission.domain_id,
-            user_id=permission.user_id,
-            current_user=current_user,
-            session=session,
-            permission=permission.permission,
-        )
+    user_domain = await check_permission_for_correct(
+        domain_id=permission.domain_id,
+        user_id=permission.user_id,
+        current_user=current_user,
+        session=session,
+        permission=permission.permission,
+    )
 
-        user_domain.permission = permission.permission
-        user_domain.permission_give_date = datetime.now()
+    user_domain.permission = permission.permission
+    user_domain.permission_give_date = datetime.now()
 
-        await session.commit()
-        await session.refresh(user_domain)
+    await session.commit()
+    await session.refresh(user_domain)
 
-        return user_domain
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
+    return user_domain
 
 
 @router.delete(
@@ -349,29 +334,22 @@ async def change_user_domain_permission(
     summary="Delete user domain by domain_id and user_id",
     status_code=status.HTTP_200_OK,
 )
-async def delete_user_domain_permission(
+async def delete_user_domain(
     domain_id: int,
     user_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> MessageSchemaResponse:
-    try:
-        user_domain = await check_permission_for_correct(
-            domain_id=domain_id,
-            user_id=user_id,
-            current_user=current_user,
-            session=session,
-        )
-        await session.delete(user_domain)
-        await session.commit()
-        return MessageSchemaResponse(message="User domain successfully deleted!")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
-        )
+
+    user_domain = await check_permission_for_correct(
+        domain_id=domain_id,
+        user_id=user_id,
+        current_user=current_user,
+        session=session,
+    )
+    await session.delete(user_domain)
+    await session.commit()
+    return MessageSchemaResponse(message="User domain successfully deleted!")
 
 
 @router.post(
@@ -379,11 +357,13 @@ async def delete_user_domain_permission(
     summary="Create Move from user in domain",
     status_code=status.HTTP_201_CREATED,
 )
+@exception_handler
 async def create_move(
     move: MoveSchema,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> MoveSchemaResponse:
+
     # Проверка прав доступа(Пользователь домена может совершить действие только от своего аккаунта)
     user_domain_execute = await session.execute(
         select(UserDomainModel).where(UserDomainModel.id == move.user_domain_id)
@@ -410,18 +390,18 @@ async def create_move(
 
 
 @router.get(
-    "/domains/{domain_id}/users/moves",
-    summary="Get all move data for user domain by user_domain_id",
+    "/domains/{domain_id}/moves",
+    summary="Get all move data for user domain by domain_id",
     status_code=status.HTTP_200_OK,
 )
-@cache(expire=300, prefix="get_user_domain", model=DomainUsersMovesResponse)
+@exception_handler
+@cache(expire=50, prefix="get_all_moves", model=DomainUsersMovesResponse)
 async def get_all_moves(
     domain_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ) -> DomainUsersMovesResponse:
     # Проверка прав доступа(Владелец/админ/модератор домена может посмотреть данные)
-
     current_user_permission_execute = await session.execute(
         select(UserDomainModel.permission).where(
             UserDomainModel.domain_id == domain_id,
@@ -465,7 +445,7 @@ async def get_all_moves(
         name=domain_moves_rows[0].domain_name,
     )
 
-    users = [
+    moves = [
         UserMoveSchema(
             first_name=row.user_first_name,
             last_name=row.user_last_name,
@@ -477,4 +457,4 @@ async def get_all_moves(
         for row in domain_moves_rows
     ]
 
-    return DomainUsersMovesResponse(domain=domain, users=users)
+    return DomainUsersMovesResponse(domain=domain, moves=moves)
