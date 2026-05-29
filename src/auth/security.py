@@ -101,9 +101,23 @@ async def decode_refresh_token(
         if payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type. Expected refresh token.",
+                detail="Invalid token type. Expected access token.",
             )
-        username = payload.get("sub")
+
+        id = payload.get("sub")
+        if id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        role = payload.get("role")
+        if role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+        current_user = CurrentUserSchema(id=int(id), role=role)
+        return current_user
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
