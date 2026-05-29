@@ -10,9 +10,10 @@ class UserSchema(BaseModel):
     first_name: str
     last_name: str
     gender: GenderEnum
-    email: Optional[str] = None
+    email: str
     birth_date: datetime
     phone: str
+    is_email_verificated: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -42,3 +43,14 @@ class UserProfileSchema(BaseModel):
 
 class MessageSchemaResponse(BaseModel):
     message: str
+
+
+class VerificationShema(BaseModel):
+    user_id: int
+    expires_at: datetime
+    is_used: bool
+    code: str
+
+
+class VerificationIDShema(VerificationShema):
+    id: int
