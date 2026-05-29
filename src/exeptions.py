@@ -16,7 +16,7 @@ def exception_handler(func: Callable) -> Callable:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"""{func.__name__} function | detail
+            logger.error(f"""{func.__name__} api | detail
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 {str(e)}
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n\n
