@@ -3,7 +3,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 
-from src.redis.service import redis_service
+from src.redis.config import redis_service
 from src.router import main_router
 
 
