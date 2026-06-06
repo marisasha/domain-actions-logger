@@ -4,7 +4,7 @@ import random
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
 from fastapi import status
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import delete, exists, select
 
 
 from src.exeptions import exception_handler
@@ -12,8 +12,8 @@ from src.user.schemas import *
 from src.user.models import *
 from src.user.dependencies import SessionDep
 from src.redis.decorators import cache
-from src.rabbit.service import rabbit_service
-from src.logger import logger
+from src.tasks.user_verification import send_authentication_email
+from src.tasks.email_verification import send_verification_email
 
 from src.auth.security import decode_access_token, hash_password
 from src.auth.schemas import CurrentUserSchema
@@ -66,17 +66,6 @@ async def create_user(
 
     session.add(new_email_verification)
     await session.commit()
-
-    data_for_email_accept = {
-        "first_name": user.first_name,
-        "email": user.email,
-        "token": token,
-    }
-
-    await rabbit_service.router.broker.publish(
-        data_for_email_accept, "email_verification"
-    )
-
     return new_user
 
 
@@ -101,7 +90,7 @@ async def verify_email(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Email already accepted"
         )
-    token = str(random.randint(1000000000000, 10000000000000))
+    token = str(random.randint(1000000000000, 9999999999999))
 
     new_verify_email = VerificationModel(
         user_id=current_user.id,
@@ -119,12 +108,13 @@ async def verify_email(
         "email": user.email,
         "token": token,
     }
+    task = send_verification_email.delay(data_for_email_accept)
 
-    await rabbit_service.router.broker.publish(
-        data_for_email_accept, "email_verification"
-    )
-
-    return new_verify_email.id
+    return {
+        "verification_id": new_verify_email.id,
+        "task_id": task.id,
+        "message": "Verification code created, email will be sent shortly",
+    }
 
 
 @router.post(
@@ -134,7 +124,6 @@ async def verify_email(
 )
 @exception_handler
 async def verify_user(
-    user_id: int,
     session: SessionDep,
     current_user: CurrentUserSchema = Depends(decode_access_token),
 ):
@@ -143,12 +132,12 @@ async def verify_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with user id {user_id} not found",
+            detail=f"User with user id {current_user.id} not found",
         )
     code = str(random.randint(100000, 999999))
 
     new_verify_user = VerificationModel(
-        user_id=user_id,
+        user_id=current_user.id,
         code=code,
         expires_at=datetime.now() + timedelta(minutes=5),
         is_used=False,
@@ -163,9 +152,13 @@ async def verify_user(
         "code": code,
     }
 
-    await rabbit_service.router.broker.publish(data_for_user_accept, "move_accept")
+    task = send_authentication_email.delay(data_for_user_accept)
 
-    return new_verify_user.id
+    return {
+        "verification_id": new_verify_user.id,
+        "task_id": task.id,
+        "message": "Verification code created, email will be sent shortly",
+    }
 
 
 @router.get(
@@ -201,7 +194,12 @@ async def accept_code(
                 user.is_email_verificated = True
             verification_code.is_used = True
             await session.commit()
-            return {"message": "Access allowed"}
+            message = (
+                "Email successfully verificated"
+                if is_email_verification
+                else "Acces allowed"
+            )
+            return {"message": message}
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

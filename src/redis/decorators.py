@@ -1,6 +1,6 @@
 import hashlib
 import json
-from src.redis.service import redis_service
+from src.redis.config import redis_service
 from functools import wraps
 from typing import Any, Callable, Type, Optional
 
