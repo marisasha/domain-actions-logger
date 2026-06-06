@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from src.auth.service import router as auth_router
 from src.user.service import router as user_router
 from src.domain.service import router as domain_router
-from src.rabbit.service import rabbit_service as rabbit_router
+from src.rabbit.config import rabbit_service as rabbit_router
 
 main_router = APIRouter()
 
