@@ -26,10 +26,18 @@ class RabbitConfig(BaseModel):
         return f"{scheme}://{self.user}:{self.password}@{self.host}:{self.port}/{self.vhost}"
 
 
+class EmailConfig(BaseModel):
+    host: str
+    port: int
+    user: str
+    password: str
+
+
 class Settings(BaseSettings):
     redis: RedisConfig
     cache: CacheConfig
     rabbit: RabbitConfig
+    email: EmailConfig
 
     class Config:
         env_file = "../.env"
