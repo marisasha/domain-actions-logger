@@ -1,14 +1,15 @@
 from celery import Celery
+from celery.schedules import crontab
 from kombu import Exchange, Queue
 from src.config import settings
 
 celery_app = Celery(
-    "your_project",
-    broker=settings.rabbit.get_rabbitmq_url(),
+    "domain",
+    broker=settings.rabbit.url,
     backend="rpc://",
     include=[
-        "src.tasks.email_verification",
-        "src.tasks.user_verification",
+        "src.tasks.email_sender",
+        "src.tasks.advertising_sheduler",
     ],
 )
 
@@ -21,15 +22,25 @@ celery_app.conf.update(
     task_track_started=True,
     task_send_sent_event=True,
     task_queues={
-        "user_authentication": {
-            "exchange": "user_authentication",
-            "routing_key": "user_authentication",
+        "email_sender": {
+            "exchange": "email_sender",
+            "routing_key": "email_sender",
         },
-        "email_verification": {
-            "exchange": "email_verification",
-            "routing_key": "email_verification",
+        "report": {
+            "exchange": "report",
+            "routing_key": "report",
         },
     },
+    # Настройки для Beat
+    beat_schedule={
+        "send-report-daily-8pm": {
+            "task": "send_report",
+            "schedule": crontab(minute="0", hour="20"),
+            "options": {"queue": "report"},
+        },
+    },
+    beat_max_loop_interval=30,
+    beat_scheduler="celery.beat:PersistentScheduler",
 )
 
 if __name__ == "__main__":
