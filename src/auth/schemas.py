@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from src.utils import GenderEnum
+from src.utils.enum import GenderEnum
 
 
 class TokenSchema(BaseModel):

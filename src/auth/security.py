@@ -9,7 +9,7 @@ from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from dotenv import load_dotenv
 from src.auth.schemas import CurrentUserSchema
-from src.utils import ENV_PATH
+from src.utils.other import ENV_PATH
 import os
 
 load_dotenv(ENV_PATH)

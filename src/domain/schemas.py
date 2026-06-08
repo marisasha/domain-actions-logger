@@ -3,7 +3,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.user.schemas import UserProfileSchema
-from src.utils import PermissionEnum, GenderEnum, MoveEnum
+from src.utils.enum import PermissionEnum, GenderEnum, MoveEnum
 
 
 # =- Domain Model-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-

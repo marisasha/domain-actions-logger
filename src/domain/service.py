@@ -21,7 +21,7 @@ from src.user.models import UserModel
 
 from src.auth.security import decode_access_token
 from src.auth.schemas import CurrentUserSchema
-from src.utils import n_print
+from src.utils.other import n_print
 
 router = APIRouter(
     tags=[

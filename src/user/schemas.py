@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
 
-from src.utils import GenderEnum
+from src.utils.enum import GenderEnum
 
 
 class UserSchema(BaseModel):

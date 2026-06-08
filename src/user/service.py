@@ -12,12 +12,14 @@ from src.user.schemas import *
 from src.user.models import *
 from src.user.dependencies import SessionDep
 from src.redis.decorators import cache
-from src.tasks.user_verification import send_authentication_email
-from src.tasks.email_verification import send_verification_email
+from tasks.email_sender import send_email
 
 from src.auth.security import decode_access_token, hash_password
 from src.auth.schemas import CurrentUserSchema
-from src.utils import n_print
+from src.utils.html_content import (
+    get_html_content_for_email_verification,
+    get_html_content_for_user_authenticate,
+)
 
 router = APIRouter(tags=["api user"], prefix="/api")
 
@@ -90,11 +92,11 @@ async def verify_email(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Email already accepted"
         )
-    token = str(random.randint(1000000000000, 9999999999999))
+    code = str(random.randint(1000000000000, 9999999999999))
 
     new_verify_email = VerificationModel(
         user_id=current_user.id,
-        code=token,
+        code=code,
         expires_at=datetime.now() + timedelta(minutes=5),
         is_used=False,
     )
@@ -102,13 +104,17 @@ async def verify_email(
     session.add(new_verify_email)
     await session.commit()
 
+    messsage = get_html_content_for_email_verification(
+        code=code, id=new_verify_email.id, first_name=user.first_name
+    )
+
     data_for_email_accept = {
-        "id": new_verify_email.id,
-        "first_name": user.first_name,
         "email": user.email,
-        "token": token,
+        "subject": "Подтверждение почты",
+        "messsage": messsage,
     }
-    task = send_verification_email.delay(data_for_email_accept)
+
+    task = send_email.delay(data_for_email_accept)
 
     return {
         "verification_id": new_verify_email.id,
@@ -146,13 +152,17 @@ async def verify_user(
     session.add(new_verify_user)
     await session.commit()
 
+    messsage = get_html_content_for_user_authenticate(
+        code=code, first_name=user.first_name
+    )
+
     data_for_user_accept = {
-        "first_name": user.first_name,
         "email": user.email,
-        "code": code,
+        "subject": "Аутентификация пользователя",
+        "messsage": messsage,
     }
 
-    task = send_authentication_email.delay(data_for_user_accept)
+    task = send_email.delay(data_for_user_accept)
 
     return {
         "verification_id": new_verify_user.id,
