@@ -2,6 +2,18 @@ from pydantic_settings import BaseSettings
 from pydantic import BaseModel
 
 
+class DBConfig(BaseModel):
+    host: str
+    port: int
+    user: str
+    password: str
+    name: str
+
+    @property
+    def url(self):
+        return f"postgresql+asyncpg://postgres:{self.password}@{self.host}:{self.port}/{self.name}"
+
+
 class RedisConfig(BaseModel):
     host: str
     port: int
@@ -21,7 +33,8 @@ class RabbitConfig(BaseModel):
     vhost: str
     ssl: bool
 
-    def get_rabbitmq_url(self):
+    @property
+    def url(self):
         scheme = "amqps" if self.ssl else "amqp"
         return f"{scheme}://{self.user}:{self.password}@{self.host}:{self.port}/{self.vhost}"
 
@@ -34,6 +47,7 @@ class EmailConfig(BaseModel):
 
 
 class Settings(BaseSettings):
+    db: DBConfig
     redis: RedisConfig
     cache: CacheConfig
     rabbit: RabbitConfig
