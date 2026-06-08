@@ -8,7 +8,7 @@ class RabbitService:
     """Класс для работы с RabbitMQ через FastStream"""
 
     def __init__(self):
-        rabbit_url = settings.rabbit.get_rabbitmq_url()
+        rabbit_url = settings.rabbit.url
         self.router = RabbitRouter(rabbit_url)
 
 
